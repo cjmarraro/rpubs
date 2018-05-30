@@ -1,2 +1,2 @@
 # rpubs
-link to Rpubs project portfolio 
+[Link](http://rpubs.com/marrce01) to Rpubs' portfolio 
