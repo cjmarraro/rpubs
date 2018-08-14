@@ -27,6 +27,7 @@ file.remove("F-F_Research_Data_Factors_daily_CSV.zip")
 f <- read.csv("F-F_Research_Data_Factors_daily.csv", header=F, skip=3)
 ```
 **Get firm stock symbols from AMEX, NYSE, and NASDAQ exchanges**
+
 ```{r, warning=FALSE}
 stocks = stockSymbols()
 stocks = stocks[complete.cases(stocks),]
@@ -36,6 +37,7 @@ tickers=stocks$Symbol
 tickers=sample(tickers, 50)
 ```
 Compute daily returns 
+
 ```{r, warning=FALSE, message=FALSE, results='hide'}
 r=list()
 for(i in 1:length(tickers)){
@@ -50,6 +52,7 @@ colnames(r)=tickers
 r=r["2016-01-31/"]
 ```
 Apply uniformly distributed weights to portfolio stocks
+
 ```{r}
 r=replace(r, is.na(r), 0)
 w= runif(50); w=w/sum(w)
@@ -81,7 +84,6 @@ mtext(text="Fama-French Factors from K. French",
 ```
 ```{r}
 fundXcess <- r2 - as.numeric(f1[,'Rf'])
-
 ffReg <- lm(fundXcess~as.numeric(f1$SMB)
             +as.numeric(f1$HML)
             +as.numeric(f1$`Mkt-Rf`))

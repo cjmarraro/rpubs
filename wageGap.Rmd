@@ -7,6 +7,7 @@ output: html_document
 ---
 
 Requirements 
+
 ```{r, warning=F, message=F}
 library(lattice)
 library(ggplot2)
@@ -23,6 +24,7 @@ library(readr)
 
 
 Read in raw data
+
 ```{r, message=F, warning=F}
 deg.creds_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_edu.csv")
 
@@ -53,9 +55,9 @@ age_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/mas
 ```
 
 
-Preprocess data
-```{r}
+process data
 
+```{r}
 age_dat <- age_dat[,c("R0000100", "T3966200")]
 income_dat = income_dat[,c("R0214700", "R0214800", "R0328000", 
                            "R0482600", "R0782101","R1024001", 
@@ -93,7 +95,6 @@ indust_dat = indust_dat[,c("R0046300", "R0263300", "R0446300", "R0702000",
                            "R3522700", "R3727700", "R4182000", "R4587901", 
                            "R5270500", "R6472100", "R6591300" ,"R7209100", 
                            "R7897500", "T0137900")]
-
 tenure_dat = tenure_dat[,c("R0068710", "R0333221", "R0539410", "R0833810", 
                            "R1081010","R1456710" ,"R1803510", "R2165110", 
                            "R2372510", "R2763410","R3005210", "R3332610",
@@ -117,6 +118,7 @@ health_dat = health_dat[,-1]
 deg.creds_dat = deg.creds_dat[,-1]
 ```
 generate column names for time-series
+
 ```{r}
 mylist = list()
 iterColNames <- function(mylist){
@@ -131,7 +133,8 @@ iterColNames <- function(mylist){
     return(myColNames)
     }
 ```
-Calculate variables tenure and "total experience" by 2006
+Calculate the variables tenure and "total experience" in 2006
+
 ```{r}
 calc_experience <- (rowSums(tenure_dat))
 tot_exp06 <-as.data.frame(calc_experience) 
@@ -153,11 +156,13 @@ colnames(dat_all) <- c("CaseID","Age", "CREDITS", "EXPT.OCC",
                        "tenure")
 ```
 Subset individuals with bachelors degree or higher
+
 ```{r}
 dat_ed = (dat_all$CREDITS > 100)
 dat_use <-subset(dat_all, dat_ed)
 ```
 compare percentage change of income in 2006 from previous years income
+
 ```{r}
 years_stagger <- dat_use[,c(9,12,15,20)]
 year06 <- dat_use[,30]
@@ -166,6 +171,7 @@ wage <- as.matrix((log(year06/years_stagger))/15 )
 summary(wage)
 ```
 transform to panel data
+
 ```{r}
 years <- c(1979:1994,1996,1998,2000,2002,2004,2006)
 dat_reshape <-reshape(dat_use, direction = "long",
@@ -176,11 +182,13 @@ dat_reshape <-reshape(dat_use, direction = "long",
                       "SPO", "WAG", "HRS"), idvar="CaseID", times=rep(years))
 ```
 Additional variables/factors 
+
 ```{r, warning=F, message=F, fig.width=8.5, tidy=TRUE}
 dat_panel = dat_reshape
 dat_hrs = (dat_panel[, 'HRS'] >=35) # full-time workers only
 data_NLSY <- subset(dat_panel, dat_hrs)
 attach(data_NLSY)
+
 #occupation dummies
 mngmt = as.numeric((OCC >= 1) & (OCC <= 43))
 professional = as.numeric((OCC >= 50) & (OCC <= 95))
@@ -285,9 +293,9 @@ xyplot(logWage~time, data=data_NLSY,
        pch=20,auto.key=T,type=c("p","g"))
 ```
 Tests
+
 ```{r}
 m.ols_null <- lm(logWage~occ_indx+female)
-
 m.ols_full <- lm(logWage~female+AfAm+hispanic+
                  phys+hlth + marital+occ_indx+
                  tenure+I(tenure^2)+data_NLSY$TOT.EXP06+

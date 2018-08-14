@@ -8,8 +8,8 @@ output: html_document
 The research and findings in the following project have been completed on behalf of StreetEasy.
 
 Required Packages
-```{r,warning=FALSE, message=FALSE}
 
+```{r,warning=FALSE, message=FALSE}
 library(xts)
 library(lattice)
 library(ggplot2)
@@ -31,7 +31,6 @@ library(knitr)
 
 ###Preprocessing Data
 ```{r, warning=F, message=F}
-
 url1 <- 'https://s3.amazonaws.com/streeteasy-market-
 data-api/data_repository/E1_rentalInventory_All.zip'
 
@@ -63,6 +62,7 @@ unlink(temp)
 
 
 Remove NAs
+
 ```{r}
 totalRentInv <- na.exclude(totalRentInv)
 med_AskRent <-na.exclude(med_AskRent)
@@ -70,8 +70,8 @@ daysOnMarket <-na.exclude(daysOnMarket)
 medSalePrice <- na.exclude(medSalePrice)
 ```
 **Median Sale Price**
-```{r, warning=FALSE, message=F}
 
+```{r, warning=FALSE, message=F}
 medSalePriceSub <- subset(medSalePrice, 
                           as.character(medSalePrice$Area) %in% 
                           as.character(daysOnMarket$Area) & 
@@ -90,6 +90,7 @@ medSalePriceCast <- cast(medSalePriceLong, Date~Area)
 medSalePrice_ts <- xts(medSalePriceCast, order.by=medSalePriceCast$Date)
 ```
 **Median Asking Rent** 
+
 ```{r, warning=FALSE, message=FALSE}
 medAskRent <-subset(med_AskRent, as.character(med_AskRent$Area) %in% 
                     as.character(daysOnMarket$Area) & 
@@ -110,6 +111,7 @@ medAskRentCast <- cast(medAskRentLong, Date~Area)
 medAskRent_ts = xts(medAskRentCast, order.by=medAskRentCast$Date)
 ```
 **Days on Market i.e. Housing supply**
+
 ```{r, message=FALSE, warning=FALSE}
 daysOnMktSub <- subset(daysOnMarket, as.character(daysOnMarket$Area) %in% 
                        as.character(medAskRent$Area))
@@ -117,7 +119,6 @@ daysOnMarketLong <- gather(daysOnMktSub, Date,
                            "Days on Market", 4:ncol(daysOnMarket), factor_key=T)
 daysOnMarketLong <- daysOnMarketLong[order(daysOnMarketLong$Area, 
                                            daysOnMarketLong$Date),]
-
 row.names(daysOnMarket) <- 1:NROW(daysOnMarket)
 daysOnMarketLong$Date <- sub("X", "", daysOnMarketLong[,4])
 daysOnMarketLong$Date <- sub(".", "-", daysOnMarketLong[,4], fixed=T)
@@ -131,6 +132,7 @@ daysOnMarket_ts <- as.xts(daysOnMarketCast,
 ```
 
 **Total Rental Inventory**  
+
 ```{r, warning=FALSE, message=FALSE}
 ttlRentInv <- subset(totalRentInv, 
                      as.character(totalRentInv$Area) %in% 
@@ -147,6 +149,7 @@ ttlRentIvCast <- cast(ttlRentIvLong, Date ~ Area)
 ttlRentInv_ts <- as.xts(ttlRentIvCast, order.by=ttlRentIvCast$Date)
 ```
 *Price-Rent Ratio calculation*
+
 ```{r}
 m1 <- apply(as.matrix.noquote(medAskRent_ts), 2, as.numeric)
 m2 <- apply(as.matrix.noquote(medSalePrice_ts), 2, as.numeric)
@@ -158,6 +161,7 @@ priceRentIndx <- gather(as.data.frame(priceRentRatio),
                         factor_key=T )
 ```
 *Monthly growth rate  for housing supply*
+
 ```{r}
 diffDaysOnMkt_1 <- diff(daysOnMarket_ts)/lag.xts(daysOnMarket_ts,1)
 diffDaysOnMkt <- gather(as.data.frame(diffDaysOnMkt_1), 
@@ -166,6 +170,7 @@ diffDaysOnMkt <- gather(as.data.frame(diffDaysOnMkt_1),
 diffDaysOnMkt[is.na(diffDaysOnMkt)] <- 0
 ```
 Panel data 
+
 ```{r, results='markup'}
 panelData = daysOnMarketLong[,c(4,1:3,5)]
 panelData<- cbind.data.frame(panelData, 
@@ -196,6 +201,7 @@ scatterplot(panelData$`Median Asking Rent`
             legend.title = "Neighborhoods", grid=F)
 ```
 Covariance tests: Fixed Effects vs. Random Effects vs. Partial Pooling
+
 ```{r warning=FALSE, results= 'markup'}
 olS <-lm(panelData$`Price Rent Index`
          ~panelData$`Days on Market`)
@@ -223,11 +229,13 @@ pcdtest(fixed, test="lm") #p-value <.05, cross-sectional dependence
 coeftest(random, vcovHC(random, type='HC0', method='white1'))
 ```
 Construct IV using random effects model
+
 ```{r}
 iv1 <- predict(random)
 panelData$iv1 <- iv1 
 ```
-Plots for exploration 
+Plots for data exploration 
+
 ```{r}
 tsRainbow <- rainbow(ncol(medAskRent_ts))
 xyplot.ts(medAskRent_ts, col=tsRainbow, ylab="Median Asking Rent")
@@ -236,6 +244,7 @@ diffDaysOnMkt_1 %>% as.data.frame() %>% na.omit() %>% GGally::ggpairs(
                     title="Days on Market Monthly Growth Rate")
 ```
 Sampling for softmax regression
+
 ```{r}
 set.seed(3214)
 trainingRows <- sample(1:nrow(panelData), .7*nrow(panelData))
@@ -244,7 +253,8 @@ testS <- panelData[sort(-trainingRows),]
 table(trainS$Area)
 
 ```
-Standardize variables for classification algorithm
+Standardize variables
+
 ```{r}
 stdZ01 <- function(x){(x-min(x))/(max(x)-min(x))
                      }
@@ -254,6 +264,7 @@ test <- apply(testS[,c(5:10,13)], 2, stdZ01) %>%
               cbind.data.frame(testS[,c(1:2,11:12)]) 
 ```
 Multinomial log-linear models via neural networks
+
 ```{r, results='hide', warning=FALSE, message=FALSE}
 options(contrasts=c("indexTRI", "indexPI"))
 
@@ -285,7 +296,6 @@ oddsRatioTable2 <- exp(coef(mod2))
 kable(oddsRatioTable2, digits=3, align="c") #log-odds
 ```
 
-*For this m x m confusion matrix, negative recall (specificity) is high, a good sign in terms of our prediction goals. Additionally, balanced accuracy is the preferred evaluation metric here to decipher algorithm performance *
 ```{r}
 t1 <- predict(mod1,test, type="class")
 cfMat <- confusionMatrix(t1, test$Area)
@@ -298,6 +308,7 @@ print(cfMat2)
 kable(cfMat2$table, align="c")
 ```
 Price-to-Rent Ratio plot
+
 ```{r, message=FALSE, fig.height=8, fig.width=8}
 priceRentTs <- ts(priceRentRatio, start=2010, frequency=12)
 priceRent_hts <- hts(priceRentTs)
@@ -314,8 +325,6 @@ p0 <- autoplot(plot0)+xlab("Year")+
               ggtitle("Total")
 lay=rbind(c(1,1), c(2,2), c(3,3))
 gridExtra::grid.arrange(p0, p1, p2, layout_matrix=lay)
-
-
 
 ```
 
