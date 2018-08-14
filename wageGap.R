@@ -1,0 +1,368 @@
+---
+title: "Gender Wage Gap "
+author: "Celia Marraro"
+date: \`r format(Sys.Date(), "%d %B, %Y")`\
+output: html_document
+ 
+---
+
+Requirements 
+```{r, warning=F, message=F}
+library(lattice)
+library(ggplot2)
+library(car)
+library(stargazer, quietly = T)
+library(plm)
+library(sampleSelection) 
+library(sandwich)
+library(lmtest)
+library(readr)
+
+```
+#Source [data](https://github.com/cjmarraro/wageGapData) from github repository
+
+
+Read in raw data
+```{r, message=F, warning=F}
+deg.creds_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_edu.csv")
+
+health_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_health.csv")
+
+spouse_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_spouse.csv")
+
+marital_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_marital.csv")
+
+indust_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_indust.csv")
+
+tenure_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_tenure.csv")
+
+occu_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_occu.csv")
+
+ex_occ_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_ex_occu.csv")
+
+occudesire_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_occdesire.csv")
+
+hrs_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tageset_hrs.csv")
+
+wage_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tageset_hrwage.csv")
+
+income_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_income.csv")
+
+age_dat <- read_csv("https://raw.githubusercontent.com/cjmarraro/wageGapData/master/data/csv_dir/tagset_age.csv")
+
+```
+
+
+Preprocess data
+```{r}
+
+age_dat <- age_dat[,c("R0000100", "T3966200")]
+income_dat = income_dat[,c("R0214700", "R0214800", "R0328000", 
+                           "R0482600", "R0782101","R1024001", 
+                           "R1410701", "R1778501", "R2141601", "R2350301",
+                           "R2722501", "R2971401", "R3279401", "R3559001",
+                           "R3897101","R4295101", "R5626201", "R6364601",
+                           "R6909701" ,"R7607800", "R8316300", "T0912400", 
+                           "T3045300" ,"T3977400")]  
+wage_dat = wage_dat[,c("R0047010", "R0263710", "R0446810", 
+                       "R0702510" ,"R0945610", "R1256010", 
+                       "R1650810", "R1923410","R2318210", "R2526010",
+                       "R2925010" ,"R3127800" ,"R3523500", "R3728500",
+                       "R4416800", "R5079800" ,"R5165200" ,"R6478000", 
+                       "R7005700" ,"R7702900","R8495200" ,"T0986800")]
+  
+hrs_dat = hrs_dat[,c("R0070500", "R0337800", "R0545600", "R0839900", 
+                     "R1087300","R1463000" ,"R1809800" ,"R2171500", 
+                     "R2376300", "R2770900", "R3012700", "R3340100", 
+                     "R3604400", "R3954600", "R4582900", "R5267100", 
+                     "R5912600", "R6578200", "R7192900" ,"R7879600",
+                     "T0121900" )]
+hrs_dat$HRS.NA <- NA
+occu_dat = occu_dat[,c("R0263400", "R0828000", "R0945300", "R1255700",
+                       "R1650500","R1923100", "R2317900", "R2525700", 
+                       "R2924700", "R3127400", "R3523100" ,"R3728100",
+                       "R4193700", "R4587901", "R5270900","R6473700",
+                       "R6592900", "R7209600", "R7898000", "T0138400")]
+occu_dat$OCC.NA <- NA
+occu_dat$OCC.NA1 <- NA
+exp_occu_dat = ex_occ_dat[,-1]
+occ_desr = occudesire_dat[,-1]
+indust_dat = indust_dat[,c("R0046300", "R0263300", "R0446300", "R0702000", 
+                           "R0944900","R1255300", "R1650100", "R1922700", 
+                           "R2317500" ,"R2525300", "R2924300", "R3127000", 
+                           "R3522700", "R3727700", "R4182000", "R4587901", 
+                           "R5270500", "R6472100", "R6591300" ,"R7209100", 
+                           "R7897500", "T0137900")]
+
+tenure_dat = tenure_dat[,c("R0068710", "R0333221", "R0539410", "R0833810", 
+                           "R1081010","R1456710" ,"R1803510", "R2165110", 
+                           "R2372510", "R2763410","R3005210", "R3332610",
+                           "R3597610", "R3947800", "R4416300","R5079300", 
+                           "R5164600" ,"R6477500", "R7005200", "R7702400",
+                           "R8494700", "T0986300")]
+marital_dat = marital_dat[,c("R0217501", "R0405601", "R0618601", "R0898401",
+                             "R1144901", "R1520101", "R1890801", "R2257901", 
+                             "R2445301", "R2871000","R3074700", "R3401400",
+                             "R3656800", "R4007300", "R4418400", "R5081400", 
+                             "R5166700", "R6479300", "R7007000", "R7704300",
+                             "R8496700", "T0988500")]
+spouse_dat = spouse_dat[,c("R0155500", "R0312710", "R0482910", "R0784300", 
+                           "R1024001","R1410701", "R1780701", "R2143801", 
+                           "R2352501", "R2724701", "R2973600", "R3281600", 
+                           "R3571801", "R3899300", "R4314401","R4996001",
+                           "R5650801", "R6374901", "R6917801", "R8325800",
+                           "T0920800" )]
+spouse_dat$SPO.NA <-NA
+health_dat = health_dat[,-1]
+deg.creds_dat = deg.creds_dat[,-1]
+```
+generate column names for time-series
+```{r}
+mylist = list()
+iterColNames <- function(mylist){
+    appendYear = c(as.character(79:94),'96','98','00',
+                   '02','04','06')
+    myColNames = list()  
+    for(i in mylist){
+          myColNames[[i]] = paste(i, appendYear, sep = ".")
+          myColNames = as.list(myColNames)
+          myColNames = myColNames[myColNames= as.character(mylist)]
+          }
+    return(myColNames)
+    }
+```
+Calculate variables tenure and "total experience" by 2006
+```{r}
+calc_experience <- (rowSums(tenure_dat))
+tot_exp06 <-as.data.frame(calc_experience) 
+tenure <- as.data.frame(rowMeans(tenure_dat))
+dat_all <- data.frame(age_dat, deg.creds_dat, exp_occu_dat, 
+                      tot_exp06,  occ_desr, income_dat,  occu_dat, indust_dat, 
+                      tenure_dat, marital_dat, spouse_dat, wage_dat, hrs_dat, 
+                      health_dat, tenure)
+  dat_all[dat_all == -1] = NA  # Refused 
+  dat_all[dat_all == -2] = NA  # Dont know 
+  dat_all[dat_all == -3] = NA  # Invalid missing 
+  dat_all[dat_all == -4] = NA  # Valid missing 
+  dat_all[dat_all == -5] = NA  # Non-interview 
+myColNames <-iterColNames(list("INC", "OCC", "IND", 
+                               "TEN", "MAR", "SPO", "WAG", "HRS"))
+colnames(dat_all) <- c("CaseID","Age", "CREDITS", "EXPT.OCC", 
+                       "TOT.EXP06", "DES.OCC", "Race", "Sex", 
+                       as.character(as.list(unlist(myColNames))), "PHYS", "WGHT", 
+                       "tenure")
+```
+Subset individuals with bachelors degree or higher
+```{r}
+dat_ed = (dat_all$CREDITS > 100)
+dat_use <-subset(dat_all, dat_ed)
+```
+compare percentage change of income in 2006 from previous years income
+```{r}
+years_stagger <- dat_use[,c(9,12,15,20)]
+year06 <- dat_use[,30]
+wage <- as.matrix((log(year06/years_stagger))/15 )
+                   wage[is.infinite(as.numeric(wage))] <- NA
+summary(wage)
+```
+transform to panel data
+```{r}
+years <- c(1979:1994,1996,1998,2000,2002,2004,2006)
+dat_reshape <-reshape(dat_use, direction = "long",
+                      varying = list(myColNames$INC, myColNames$OCC,
+                      myColNames$IND,myColNames$TEN, myColNames$MAR, 
+                      myColNames$SPO, myColNames$WAG, myColNames$HRS),
+                      v.names=c("INC", "OCC", "IND", "TEN", "MAR", 
+                      "SPO", "WAG", "HRS"), idvar="CaseID", times=rep(years))
+```
+Additional variables/factors 
+```{r, warning=F, message=F, fig.width=8.5, tidy=TRUE}
+dat_panel = dat_reshape
+dat_hrs = (dat_panel[, 'HRS'] >=35) # full-time workers only
+data_NLSY <- subset(dat_panel, dat_hrs)
+attach(data_NLSY)
+#occupation dummies
+mngmt = as.numeric((OCC >= 1) & (OCC <= 43))
+professional = as.numeric((OCC >= 50) & (OCC <= 95))
+hard_science = as.numeric((OCC >= 100) & (OCC <= 156))
+technical <- as.numeric((OCC >= 203) & (OCC <= 235))
+sales <- as.numeric((OCC >= 243) & (OCC <= 285))
+clerical <- as.numeric((OCC >= 303) & (OCC <= 395))
+service <- as.numeric((OCC >= 403) & (OCC <= 469))
+operatives <- as.numeric(( OCC >= 473) & (OCC <= 889))
+
+occ_indx <- as.factor(0*mngmt+1*professional+ 
+                      2*hard_science+3*technical+ 
+                      4*sales+5*clerical+ 
+                      6*service+7*operatives)
+
+levels(occ_indx)[1] <- "mngmt"
+levels(occ_indx)[2] <- "prof"
+levels(occ_indx)[3] <- "hard science"
+levels(occ_indx)[4] <- "technical"
+levels(occ_indx)[5] <- "sales"
+levels(occ_indx)[6] <- "clerical"
+levels(occ_indx)[7] <- "services"
+levels(occ_indx)[8] <- "operatives"
+
+occ_indx = relevel(occ_indx, ref="mngmt")
+levels(occ_indx)
+
+female <- as.numeric(Sex==2)
+hispanic <- as.numeric(Race==1)
+AfAm <- as.numeric(Race==2)
+race_other <- as.numeric(Race==3)
+
+# Physical abilities proxy
+phys <- as.factor(PHYS) 
+levels(phys) <- c("Excellent", "Very good", "Good", "Fair", "Poor")
+phys = relevel(phys, ref="Good")
+
+# Physical health proxy
+hlth <- as.factor(WGHT)
+levels(hlth) <- c("overweight", "underweight", "normal", "not ascertained")
+hlth = relevel(hlth, ref="normal")
+
+marital <- as.factor(MAR)
+levels(marital) <- c("never married", "married", "separated", 
+                     "divorced", "remarried", "widowed")
+marital = relevel(marital, ref="married")
+
+exp_career <- as.numeric(EXPT.OCC==c(1,2,4)) # 5 yr career expectation parameter <-- career expectations in 1979, those who expected to be married (i.e. didn't plan on having a job) = 0, everyone else = 1
+tenure = round(data_NLSY$tenure)
+logHours <- log(HRS)
+logHours[is.infinite(logHours)] <- NA
+
+logWage <- log(WAG)
+logWage[is.infinite((logWage))] <- NA
+
+# occupational expectations to be compared with actual occupation
+desr_mngmt <- as.numeric((DES.OCC >= 1) & (DES.OCC <= 43))
+desr_professional <- as.numeric((DES.OCC >= 50) & (DES.OCC <= 95))
+desr_hard_science <- as.numeric((DES.OCC >= 100) & (DES.OCC <= 156))
+desr_technical <- as.numeric((DES.OCC >= 203) & (DES.OCC <= 235))
+desr_sales <- as.numeric((DES.OCC >= 243) & (DES.OCC <= 285))
+desr_clerical <- as.numeric((DES.OCC >= 303) & (DES.OCC <= 395))
+desr_service <- as.numeric((DES.OCC >= 403) & (DES.OCC <= 469))
+desr_operatives <- as.numeric((DES.OCC >= 473) & (DES.OCC <= 889))
+
+desr.occ_indx <- as.factor(0*desr_mngmt + 1*desr_professional + 2*desr_hard_science + 3*desr_technical + 4*desr_sales + 5*desr_clerical + 6*desr_service + 7*desr_operatives)
+
+levels(desr.occ_indx)[1] <- "desr.mngmt"
+levels(desr.occ_indx)[2] <- "desr.prof"
+levels(desr.occ_indx)[3] <- "desr.hard science"
+levels(desr.occ_indx)[4] <- "desr.technical"
+levels(desr.occ_indx)[5] <- "desr.sales"
+levels(desr.occ_indx)[6] <- "desr.clerical"
+levels(desr.occ_indx)[7] <- "desr.services"
+levels(desr.occ_indx)[8] <- "desr.operatives"
+
+print(by(data_NLSY$INC, occ_indx, summary)) # income, occupation comparison 
+careers <-  as.data.frame(cbind(as.character(occ_indx), 
+                                as.character(desr.occ_indx)))
+colnames(careers) <- c("Actual", "Desired")
+careers_tab <- xtabs(~Actual + Desired, careers, addNA=T)
+dActual <- rowSums(careers_tab)
+dDesired <- colSums(careers_tab)
+career_result <- rbind(dActual, dDesired) 
+barplot(career_result[,-9], col=c("black", "grey"), 
+        beside=T, main="Actual vs. Desired Occupation", 
+        legend.text=c("Actual", "Desired"), ylim=c(0,960))
+data_NLSY = cbind.data.frame(data_NLSY[,c("CaseID", "time","Age","Race" ,"Sex", "PHYS",
+                                          "WGHT", "CREDITS","EXPT.OCC", "TOT.EXP06", 
+                                          "DES.OCC","tenure","INC", "OCC" , "IND", 
+                                          "MAR",    "SPO","WAG","HRS")] ,occ_indx , 
+                                          desr.occ_ind, marital,female, hispanic,AfAm,
+                                          race_other, logHours,logWage, hlth, exp_career)
+
+detach(data_NLSY)
+#Tests
+coplot(logWage ~ time|CaseID*female, type="l",
+       col = c("blue", " pink"), data=data_NLSY,  
+       panel=function(x,y,...) panel.smooth(x,y,span=.6,...))
+xyplot(logWage~time, data=data_NLSY, 
+       groups=factor(female,labels=c('M','F')), 
+       pch=20,auto.key=T,type=c("p","g"))
+```
+Tests
+```{r}
+m.ols_null <- lm(logWage~occ_indx+female)
+
+m.ols_full <- lm(logWage~female+AfAm+hispanic+
+                 phys+hlth + marital+occ_indx+
+                 tenure+I(tenure^2)+data_NLSY$TOT.EXP06+
+                 I(data_NLSY$TOT.EXP06^2)+exp_career+IND+
+                 SPO, data=data_NLSY[,c(1:11,13:19)])
+mfixed <- plm(logWage~occ_indx+female, data=data_NLSY,
+              index=c("CaseID", "time"), 
+              model="within") #F stat < .05, use log wage only
+pFtest(mfixed, m.ols_null) # F test p-val < .05; use fixed
+mrandom <- plm(logWage~occ_indx+female,
+               data=data_NLSY, index=c("CaseID", "time"),
+               model="random")
+phtest(mfixed, mrandom) # < .05, use fixed
+mfixed.2 <-plm(logWage~female+AfAm+hispanic+phys+ 
+               hlth+marital+occ_indx+tenure+I(tenure^2)+ 
+               TOT.EXP06+I(TOT.EXP06^2)+
+               exp_career + IND+SPO, 
+               index=c("CaseID", "time"),
+               model="within", data=data_NLSY)
+coeftest(mfixed.2)
+coeftest(mfixed.2, vcovHC(mfixed.2, method = "arellano"))
+```
+#Selection bias
+```{r, warning=F,message=F}
+exp_career_female <- exp_career*female
+selection.1 <- selection(selection=exp_career_female~occ_indx + marital, 
+                         outcome=logWage~tenure+I(tenure^2)+data_NLSY$SPO+ 
+                         data_NLSY$TOT.EXP06, data=data_NLSY[,c(1:11,13:19)], 
+                         method="2step" )
+probit_sel <- glm(exp_career_female~occ_indx+AfAm+hispanic+logHours+ 
+                  tenure+I(tenure^2)+data_NLSY$TOT.EXP06+I(data_NLSY$TOT.EXP06^2)+
+                  data_NLSY$SPO+marital, family="binomial" (link="probit"), 
+                  data=data_NLSY[,c(1:11,13:19)])
+imr_var <- dnorm(probit_sel$linear.predictors)/pnorm(probit_sel$linear.predictors)
+IMR <-cbind(imr_var, exp_career_female) #inverse mill's ratio
+outcome1 <- lm(logWage ~ tenure + I(tenure^2)+
+               data_NLSY$SPO+data_NLSY$TOT.EXP06+
+               IMR[,1], subset=(exp_career_female==1),
+               data=data_NLSY[,c(1:11,13:19)])
+outcome2 <- lm(logWage~logHours+AfAm+
+               hispanic+phys+hlth+marital+
+               occ_indx+tenure+I(tenure^2)+
+               data_NLSY$TOT.EXP06+
+               I(data_NLSY$TOT.EXP06^2)+
+               data_NLSY$SPO+IMR[,1],
+               subset=(exp_career_female==1), 
+               data=data_NLSY[,c(1:11,13:19)])
+```
+#Tables
+```{r, results='asis', warning=F, message=F}
+star_probit <- stargazer(probit_sel, type="html", 
+                         out="tableprobit.html", align=T, 
+                         title="Table. 1 Probit Model of Occupational Expectations for Women", 
+                         intercept.bottom=F, flip=T)
+star_selection <- stargazer(m.ols_null, m.ols_full, 
+                            outcome1, outcome2, selection.1, 
+                            type="html", out="tableselection.html",
+                            title="Table. 2 Heckman Model Selection", 
+                            column.labels=c("uncorrected", "corrected"), 
+                            column.separate=c(2,2), selection.equation=T, 
+                            single.row=T, dep.var.labels.include=F, model.names=T, 
+                            align=T, multicolumn=F)
+star_FE <- stargazer(m.ols_null, m.ols_full, mfixed, mfixed.2, 
+                     type="html", out="tableFE.html", 
+                     title="Table. 3 OLS and Fixed Effects Comparison",
+                     column.labels=c("OLS", "FE"), column.separate=c(2,2), 
+                     single.row=T, dep.var.labels.include=F, model.names=F, 
+                     align=T, multicolumn=F)
+#robustness 
+cov1 <- vcovHC(mfixed.2)
+robust.se <- sqrt(diag(cov1))
+star_Robust <- stargazer(mfixed.2, title="Table. 4 Robust Standard Errors", 
+                         type="html", out="robust", single.row=T, 
+                         se=list(robust.se, NULL))
+coeftest(mfixed.2)
+````
+
+

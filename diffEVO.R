@@ -1,0 +1,372 @@
+---
+title: "Technology Innovation with DE optimization"
+author: "Celia Marraro"
+date:  \`r format(Sys.Date(), "%d, %B, %Y")`\
+output: html_document
+---
+The focus of this project is innovation and technology diffusion within the energy sector.
+Specifically, the purpose of the study will be to determine how and why clean-energy 
+technology enters into the market, and whether or not it supersedes incumbent technologies. 
+The mode of analysis will use evolutionary modeling techniques to describe technology selection 
+and the dynamics of selection based on the evolutionary concepts of recombination and mutation. 
+
+The study uses time-series data from 1971 to 2015 from the IEA database, as well as BEA industrial
+price indexes for electricity, accessed through the Quandl API, also between 1971-2015:
+
+https://www.iea.org/media/statistics/IEA_HeadlineEnergyData_2017.xlsx
+
+https://www.quandl.com/data/BEA/T50404_A-Price-Indexes-for-Private-Fixed-Investment-in-Structures-by-Type-Annual-data-from-1929-to-2016 _You will need an API key to access the data_
+
+
+Requirements
+```{r, warning=F, message=F}
+library(openxlsx)
+library(Quandl)
+library(ggplot2)
+library(lattice)
+library(reshape)
+library(forecast)
+library(zoo)
+library(car)
+library(plyr)
+library(dplyr)
+library(RcppDE)
+```
+
+
+Read in Energy Data from IEA 
+```{r, warning=F, message=F}
+url = "https://www.iea.org/media/statistics/IEA_HeadlineEnergyData_2017.xlsx"
+
+datEnergy <- readWorkbook(url, sheet=4, check.names = T, detectDates = T)
+dataUS <- filter(datEnergy, datEnergy[,1] == 'United States')
+colnames(dataUS) <- datEnergy[1,]
+dataUS = dataUS[,-c(1,4:6,52)]
+rownames(dataUS) <- 1:NROW(dataUS)
+```
+
+Gwh of electricity per technology i.e. Installed capacity
+```{r, message=F, fig.width=9, fig.height=9}
+
+years <- 1971:2015
+datOutputE <- filter(dataUS, dataUS[,'Flow'] == 'Electricity output (GWh)') %>% as.data.frame() %>% reshape( direction = "long",
+     varying = list(names(dataUS[3:47])), ids = 1:4 ,
+        times = rep(years), v.names = "Energy Output","Year")
+
+datOutputE = datOutputE[,-5]
+datCapacity = cast(datOutputE, Year~ Product)
+plot(datCapacity)
+
+capacity_ts <- xts(datCapacity, order.by = as.Date.yearqtr(datCapacity$Year))
+colnames(capacity_ts) <- c("Fossil Fuel Gwh", "Nuclear Gwh", "Renewable Gwh", "Total Gwh")
+
+tsRainbow <- rainbow(ncol(capacity_ts))
+plot.zoo(capacity_ts[10:NROW(capacity_ts),], col = tsRainbow, main = "Installed Capacity by Technology")
+
+capacity_ts <- cumsum(capacity_ts)
+
+```
+Import BEA data with Quandl API, price Index & cumulative price index
+```{r}
+
+Quandl.api_key(Sys.getenv("Quandl_Auth")) #API access key 
+
+priceE <- Quandl("BEA/T50404_A", order = "asc", type = "xts")
+priceE = priceE[,c(1,16:18)]; 
+priceE = priceE["1971/2015"]
+priceE = xts(priceE, order.by = as.Date.yearqtr(datCapacity$Year))
+priceE <- priceE[,3]
+colnames(priceE) <- "Industry Electric Price Index"
+
+priceC <- Quandl("BEA/T50404_A", order = "asc",
+                 type = "xts", transform = "cumul")
+priceC = priceC[,c(1,16:18)]; 
+priceC = priceC["1971/2015"]
+priceC = xts(priceC, order.by = as.Date.yearqtr(datCapacity$Year))
+priceC <- priceC[,3]
+colnames(priceC) <- "Cumulative Electric Price Index"
+```
+Capital Investments (*Primary* inputs in electricity production/technology)
+```{r, message=F}
+d1 <- filter(dataUS, dataUS[,'Flow'] == 'Electricity plants (ktoe)') %>% as.data.frame() %>% reshape( direction = "long",
+     varying = list(names(dataUS[3:47])), ids = 1:9 ,
+        times = rep(years), v.names = "Input","Year")
+
+Input_dat <- d1[,-5]
+Input_dat <- cast(Input_dat, Year ~ Product)
+Input_dat = Input_dat[,-c(3:5)]
+Input_ts <- xts(Input_dat,
+    order.by = as.Date.yearqtr(Input_dat$Year))
+Input_ts = Input_ts[,-1]
+colnames(Input_ts)=colnames(Input_dat[,2:7])
+```
+Convert inputs to fractional shares of technology_i, i= 1,2,3
+```{r, message=F,warning=F}
+m <- apply(as.matrix.noquote(Input_ts),2,as.numeric)
+m <- -m
+m <- cbind(m, rowSums(m[,1:2]))
+m<- m[, c(7,3,5:6)]
+shares.dat <- t(m[, c(1:3)])/m[,4]
+shares.dat <- t(shares.dat)
+shares.dat=as.data.frame(shares.dat)
+colnames(shares.dat) <- c("Fossil Fuel Shares", "Nuclear Shares", "Renewables Shares")
+shares.ts <- xts(shares.dat, order.by = as.Date.yearqtr(Input_dat$Year))
+shares.ts <- cumsum(shares.ts[,1:3])
+
+```
+
+Emissions data  
+```{r, message=F}
+
+datEmissions <- dataUS[nrow(dataUS),]
+datEmissions = reshape(datEmissions, direction = "long",
+ varying = list(names(datEmissions[3:47])), ids = 1:NROW(datEmissions),
+ times = rep(years), v.names = "Energy Output","Year")
+datEmissions= datEmissions[,-5]
+datEmissions = cast(datEmissions, Year ~ Flow)
+
+emission.ts <- xts(datEmissions[,2], order.by = 
+ as.Date.yearqtr(datEmissions$Year)) %>%`colnames<-`   ("Annual CO2 Emissions") 
+  
+```
+
+Main data set & some plots
+```{r}
+
+datMain.xts <- merge(capacity_ts,  shares.ts,
+                     priceE, priceC, emission.ts)
+xyplot.ts(datMain.xts, col = tsRainbow)
+
+datMain <- as.data.frame.ts(datMain.xts)
+
+scatterplot(datMain$Annual.CO2.Emissions ~
+              datMain$Renewables.Shares)
+scatterplot(datMain$Annual.CO2.Emissions ~
+              datMain$Fossil.Fuel.Shares)
+
+scatterplotMatrix(datMain[,c(5:7,10)], diagonal="density", smooth=F, transform = T, smoother = quantregLine, spread = F)
+
+
+```
+
+##Autocorrelation tests and forecasting
+
+Renewable Energy
+```{r, fig.height=8, fig.width=8}
+
+auto.arima(as.numeric(capacity_ts[,3])) #renewable capacity
+fitRenew<- arima(as.numeric(capacity_ts[,3]), order=c(0,2,0))
+tsdiag(fitRenew) #time series diagnostic
+fCast <- forecast(fitRenew, h=20, level = 95)
+xyplot(fCast$residuals)
+autoplot(fCast)
+
+auto.arima(as.numeric(shares.ts[,3])) #renewable shares
+fitShares <- arima(as.numeric(shares.ts[,3]), order=c(0,2,0))
+tsdiag(fitShares)
+fShCast <- forecast(fitShares, h=20, level = 95)
+xyplot(fShCast$residuals)
+autoplot(fShCast)
+```
+
+Emissions
+```{r, fig.height=7.7}
+plot.ts(emission.ts, type="b")
+
+auto.arima(as.numeric(emission.ts))
+
+fit.emiss <- arima(as.numeric(emission.ts), order = c(0,1,0))
+
+tsdiag(fit.emiss)
+
+fcast.emiss <- forecast(fit.emiss, h=20, level = 95)
+xyplot(fcast.emiss$residuals, ylab="Emissions", xlab = "Years", 
+       sub="Emissions' Forecasting Residuals")
+
+autoplot(fcast.emiss)
+
+spec.pgram(as.numeric(datMain.xts[,3]), main="Spectrum of Renewable Energy",
+           sub= "Cumulative Installed Capacity (Gwh)" )
+
+Acf(coredata(datMain.xts[,c(3)]), na.action = na.pass, lag.max = 40, 
+    main="Correlogram for Renewable Energy", sub="Cumulative Installed Capacity (Gwh)")
+
+```
+
+##Objective function/Inputs
+
+  + objFun() denotes a unit cost of technology_i at time = t
+  + beta, the learning elasticity, is > 0.3 for renewable energy sources and <.03 for incumbents 
+```{r}
+
+costDat <- merge(log(datMain.xts[,c(3,2,1,7,6,5)]))
+beta<- seq(.022, .4, length.out = 100) # "learning elasticity"
+k <- 1:NROW(costDat)
+
+objFun <- function(x1=coredata(costDat[k,1:3]),x2 = coredata(costDat[k,4:6])){
+  
+  if("Renewables.Shares" %in% names(x2)){
+    
+  epsilon = sample(beta[beta > .30],1)*x2
+  
+} else {
+  epsilon = sample(beta[beta < .03],1)*x2
+  
+}
+  cost1 <- 1/x1 + epsilon
+
+  for (l in 1:3){
+
+    ifelse(cost1[k,l] > log(priceE), Inf, cost1)
+   
+  }
+ 
+  return(exp(cost1))
+k=k+1
+}
+
+#plot function
+xyplot.ts(objFun(), superpose = T, lwd = 3)
+
+```
+
+#Construct lower and upper bounds for minimization parameters_
+```{r, message=F, warning=F}
+set.seed(384)
+a1 <- seq(from = .01, to = 1.1, length.out = 10)
+a2 <- seq(from = .02, to = 1.5, length.out = 10)
+a3 <- seq(from = .05, to = 4.99, length.out = 10)
+
+b1 <- seq(from = .5, to = 10.5, length.out = 10)
+b2 <- seq(from = 1, to = 11, length.out = 10)
+b3 <- seq(from = 2, to = 15, length.out = 10)
+
+low <- list(a1,a2,a3)
+for(i in 1:length(low)){
+  lowBound <- sample(low[[i]], size = 1)
+  
+  lowBound <- rep(lowBound,3)
+
+  return(lowBound)
+}
+
+upper <- list(b1,b2,b3)
+for(j in 1:length(upper)){
+
+  upperBound <- sample(upper[[j]], size =1)
+
+  upperBound <- rep(upperBound,3)
+
+
+  if(upperBound >= lowBound) {
+}
+
+  return(upperBound)
+}
+
+print(lowBound)
+print(upperBound)
+```
+
+DE optimization
+```{r}
+set.seed(1235)
+
+mutateZero <- DEoptim(fn=objFun,lower = lowBound, 
+  upper = upperBound, 
+  control = DEoptim.control(trace=F, F = 0, 
+  CR = .55, storepopfrom = 1, storepopfreq = 2, 
+  strategy = 3, itermax = 500))
+summary(mutateZero)
+
+crZero <- DEoptim(fn=objFun, lower= lowBound,
+    upper= upperBound,
+    control = DEoptim.control(trace=F, F = 1.5,
+    CR = 0, storepopfrom = 1, storepopfreq = 2,
+    strategy = 3, itermax = 500))
+summary(crZero)
+
+midRates <- DEoptim(fn=objFun,lower = lowBound,
+      upper = upperBound,
+      control = DEoptim.control(trace=F, F = 1,
+      CR = .5, storepopfrom = 1, storepopfreq = 2,
+      strategy = 3, itermax = 500))
+summary(midRates)
+
+crGreater <- DEoptim(fn=objFun,lower = lowBound,
+        upper = upperBound,
+        control = DEoptim.control(trace=F, F = .1,
+        CR = .75, storepopfrom = 1, storepopfreq = 2,
+        strategy = 3, itermax = 500))
+summary(crGreater)
+
+
+fGreater <- DEoptim(fn=objFun,lower = lowBound,
+        upper = upperBound,
+        control = DEoptim.control(trace=F, F = 1.3,
+        CR = 0.08, storepopfrom = 1, storepopfreq = 2,
+        strategy =3, itermax = 500))
+summary(fGreater)
+
+zeroRates <- DEoptim(fn=objFun,lower = lowBound,
+        upper = upperBound,
+        control = DEoptim.control(trace=F, F = 0,
+        CR = 0, storepopfrom = 1, storepopfreq = 2,
+        strategy = 3, itermax = 500))
+summary(zeroRates)
+```
+
+Summary of convergence results 
+```{r}
+c(
+cat("best:", mutateZero$optim$bestmem, "f:", mutateZero$optim$bestval,"\n"),
+cat("best:", crZero$optim$bestmem, "f:",  crZero$optim$bestval,"\n"),
+cat("best:", fGreater$optim$bestmem, "f:", fGreater$optim$bestval,"\n"),
+cat("best:", midRates$optim$bestmem, "f:", midRates$optim$bestval,"\n"),
+cat("best:", crGreater$optim$bestmem, "f:", crGreater$optim$bestval,"\n"),
+cat("best:", zeroRates$optim$bestmem, "f:", zeroRates$optim$bestval,"\n"))
+
+
+```
+
+
+```{r, fig.width=8.7, fig.height=9}
+par(mfrow = c(3,2))
+plot(mutateZero, plot.type = "bestvalit", log="x",
+     type ="l", lwd=2, col="blue",
+     sub="Strategy: Mutatation(0), Cross Over(0.55)")
+plot(crZero, plot.type = "bestvalit", log="x",
+     type ="l", lwd=2, col="darkred",
+     sub="Strategy: Cross Over(0), Mutation(1.5)")
+plot(midRates, plot.type = "bestvalit", log= "x",
+     type ="l", lwd=2, col="green",
+    sub="Strategy: Mutation(1) & Cross Over(0.5), Mid-range")
+plot(crGreater, plot.type = "bestvalit", log= "x",
+     type ="l", lwd=2, col="pink",
+     sub="Strategy: Cross Over(0.75) > Mutation(0.1)")
+plot(fGreater, plot.type = "bestvalit", log ="x",
+     type ="l", lwd=2, col="red",
+     sub="Strategy: Cross Over(0.08) < Mutation(1.3)")
+plot(zeroRates, plot.type = "bestvalit", log = "x",
+     type ="l", lwd=2, col="darkgreen",
+     sub="Strategy: Mutation = Cross Over =0")
+
+
+Lab.palette <- colorRampPalette(c("blue", "orange", "red"), space = "Lab")
+
+par(mfrow = c(3,2))
+smoothScatter(density(crZero$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+smoothScatter(density(midRates$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+smoothScatter(density(crGreater$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+smoothScatter(density(mutateZero$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+smoothScatter(density(fGreater$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+smoothScatter(density(zeroRates$member$pop), colramp = Lab.palette, xlab = "Best Member/Generation", ylab = "Density")
+
+```
+
+
+
+
+
+
+

@@ -1,0 +1,139 @@
+---
+title: "Credit Score Analysis"
+author: "Celia Marraro"
+date:  \`r format(Sys.Date(), "%d %B, %Y")`\
+output: html_document
+---
+Requirements
+```{r,warning=FALSE, message=FALSE}
+library(caret)
+library(lattice)
+library(ROCR)
+library(e1071)
+library(party)
+```
+
+Data
+```{r}
+data("GermanCredit")
+datGerCred <- GermanCredit
+
+```
+
+Variable binning
+```{r}
+datGerCred$amt.fac <- as.factor(ifelse(datGerCred$Amount<=2500, 
+                                       "0-2500", ifelse(datGerCred$Amount<=5000, 
+									   "2600-5000", "5000+")))
+datGerCred$age.fac <- as.factor(ifelse(datGerCred$Age<=30,        
+                                       '0-30', ifelse(datGerCred$Age<=40,
+									   '30-40', '40+')))
+datGerCred$Duration <- as.factor(ifelse(datGerCred$Duration<=15, 
+                                 "0-15", ifelse(datGerCred$Duration<=30, 
+								 "16-30", ifelse(datGerCred$Duration <=50, "31-50",
+                                 ifelse(datGerCred$Duration <=72, "51-72")))))
+datGerCred$default <- as.factor(ifelse(datGerCred$Class=="Bad", "1", "0"))
+```
+Prediction error conditions for default when bad credit := 1: 
+
+  + false positive, when incorrectly predicting an applicant has good credit 
+
+  + false negative, when incorrectly predicting an applicant has bad credit 
+  
+
+plots describing data
+```{r}
+ mosaicplot(default~age.fac, col=T, data=datGerCred)
+spineplot(Class~age.fac, data=datGerCred)
+xyplot(Amount~Age, data=datGerCred)
+xyplot(Amount~Age|datGerCred$default, data=datGerCred)
+# remove continuous variables with discrete copies
+datBin <- datGerCred[,-c(2,5,10)] 
+```
+Train/Test split
+```{r}
+datSamp <- sort(sample(nrow(datBin), nrow(datBin)*0.7))
+train <- datBin[datSamp,]
+test <- datBin[-datSamp,]
+```
+Full logit model, mainly used here to determine variable selection
+```{r, warning=F,message=F}
+m.log<-glm(train$default~.,data=train,family=binomial)
+test$score <- predict(m.log, test, type="response")
+pred.log<-prediction(test$score,test$default)
+perf.log <- performance(pred.log, "tpr", "fpr")
+plot(perf.log, col="light green")
+abline(0,1, lty=8, col="red")  # 45 degree line in graph
+auc1 <- performance(pred.log, "auc") # calculates area under roc curve
+plot(performance(pred.log, "acc")) #cutoff 
+
+#Logit model of significant variables from previous logit 
+m.log_redux <- glm(default ~ Duration+  
+                   InstallmentRatePercentage+
+				   ForeignWorker+ 
+				   CheckingAccountStatus.0.to.200+ 
+				   CheckingAccountStatus.gt.200+ 
+				   CheckingAccountStatus.lt.0+ 
+				   CreditHistory.NoCredit.AllPaid+ 
+				   CreditHistory.ThisBank.AllPaid+ 
+				   CreditHistory.Delay+SavingsAccountBonds.lt.100+
+				   SavingsAccountBonds.100.to.500+ 
+				   OtherDebtorsGuarantors.None+ 
+				   OtherDebtorsGuarantors.CoApplicant, 
+				   data=train, family=binomial)
+test$score <- predict(m.log_redux, test, type="response")
+pred.log2 <-prediction(test$score,test$default)
+perf.log2 <- performance(pred.log2, "tpr", "fpr")
+plot(perf.log2, col="pink", add=T)
+abline(0, 1, lty=8, col="red")
+auc2 <- performance(pred.log2, "auc") 
+plot(performance(pred.log2, "acc")) 
+```
+##Area under the curve is `r sprintf("%.7f", auc2@y.values) `
+
+Confusion matrix and stats
+```{r}
+cmat.logit <- xtabs(~round(test$score)+test$default)
+cmat.logit <- confusionMatrix(cmat.logit, dnn=c("Prediction", "Label"))
+print(cmat.logit)
+```
+Decision tree model
+```{r}
+m.tree <-ctree(default~ Duration+InstallmentRatePercentage
+               +ForeignWorker+CheckingAccountStatus.0.to.200
+			   +CheckingAccountStatus.gt.200
+			   +CheckingAccountStatus.lt.0
+			   +CreditHistory.NoCredit.AllPaid
+			   +CreditHistory.ThisBank.AllPaid+CreditHistory.Delay
+			   +SavingsAccountBonds.lt.100
+			   +SavingsAccountBonds.100.to.500
+			   +OtherDebtorsGuarantors.None
+			   +OtherDebtorsGuarantors.CoApplicant, data=train)
+plot(m.tree)
+result.dat <- as.data.frame(do.call("rbind", 
+                            treeresponse(m.tree, newdata=test))) #model accuracy results
+test$tscore<-result.dat[,2] 
+pred.tree<-prediction(test$tscore,test$default) 
+perf.tree <- performance(pred.tree, "tpr", "fpr")
+```
+Combined plot of logit model performance and tree model performance
+```{r}
+plot(perf.log2, col='red', main='Logit vs Ctree')
+plot(perf.tree, col='dark green', add=TRUE)
+abline(0, 1, lty=8, col="grey")
+auc3<- performance(pred.tree, "auc") 
+plot(performance(pred.tree, "acc")) 
+```
+#Area under the curve is `r sprintf("%.7f", auc3@y.values) `
+
+Confusion matrix and stats 
+```{r}
+cmat.tree <-xtabs(~round(test$tscore)+test$default)
+cmat.tree = confusionMatrix(cmat.tree) 
+print(cmat.tree)
+
+par(mfrow=c(1,2))
+fourfoldplot(cmat.tree$table, main="Decision Tree Model")
+fourfoldplot(cmat.logit$table, main="Logit Model")
+```
+
