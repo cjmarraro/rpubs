@@ -24,18 +24,20 @@ datGerCred <- GermanCredit
 Variable binning
 
 ```{r}
-datGerCred$amt.fac <- as.factor(ifelse(datGerCred$Amount<=2500,"0-2500", 
-                                ifelse(datGerCred$Amount<=5000, 
-									   "2600-5000", "5000+")))
-datGerCred$age.fac <- as.factor(ifelse(datGerCred$Age<=30,'0-30', 
-                                ifelse(datGerCred$Age<=40,
-									   '30-40', '40+')))
-datGerCred$Duration <- as.factor(ifelse(datGerCred$Duration<=15,"0-15", 
-                                 ifelse(datGerCred$Duration<=30, 
-								        "16-30", ifelse(datGerCred$Duration<=50, 
-										"31-50", ifelse(datGerCred$Duration<=72, 
-										"51-72")))))
-datGerCred$default <- as.factor(ifelse(datGerCred$Class=="Bad", "1", "0"))
+datGerCred$amt.fac<-as.factor(ifelse(datGerCred$Amount<=2500,"0-2500", 
+                              ifelse(datGerCred$Amount<=5000, "2600-5000", 
+                                     "5000+")))
+
+datGerCred$age.fac<-as.factor(ifelse(datGerCred$Age<=30,'0-30', 
+                              ifelse(datGerCred$Age<=40,'30-40', 
+                                     '40+')))
+datGerCred$Duration<-as.factor(ifelse(datGerCred$Duration<=15,"0-15", 
+                               ifelse(datGerCred$Duration<=30, "16-30", 
+							   ifelse(datGerCred$Duration<=50, "31-50",
+							   ifelse(datGerCred$Duration<=72, "51-72"
+							   )))))
+datGerCred$default <- as.factor(ifelse(datGerCred$Class=="Bad", 
+                                       "1", "0"))
 ```
 Prediction error conditions for default when bad credit := 1: 
 
