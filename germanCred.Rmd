@@ -39,7 +39,7 @@ datGerCred$Duration<-as.factor(ifelse(datGerCred$Duration<=15,"0-15",
 datGerCred$default <- as.factor(ifelse(datGerCred$Class=="Bad", 
                                        "1", "0"))
 ```
-Prediction error conditions for default when bad credit := 1: 
+Prediction error conditions of a default when bad credit := 1: 
 
   + false positive, when incorrectly predicting an applicant has good credit 
 
@@ -63,7 +63,7 @@ datSamp <- sort(sample(nrow(datBin), nrow(datBin)*0.7))
 train <- datBin[datSamp,]
 test <- datBin[-datSamp,]
 ```
-Full logit to determine variable selection
+Full logit to determine feature selection
 
 ```{r, warning=F,message=F}
 m.log<-glm(train$default~.,data=train,family=binomial)
@@ -75,7 +75,7 @@ abline(0,1, lty=8, col="red")  # 45 degree line in graph
 auc1 <- performance(pred.log, "auc") # calculates area under roc curve
 plot(performance(pred.log, "acc")) #cutoff 
 
-#significant variables from previous logit 
+#include significant variables from previous logit only
 m.log_redux <- glm(default~Duration+  
                    InstallmentRatePercentage+
 				   ForeignWorker+ 

@@ -181,7 +181,7 @@ dat_reshape <-reshape(dat_use, direction = "long",
                       v.names=c("INC", "OCC", "IND", "TEN", "MAR", 
                       "SPO", "WAG", "HRS"), idvar="CaseID", times=rep(years))
 ```
-Additional variables/factors 
+Additional features
 
 ```{r, warning=F, message=F, fig.width=8.5, tidy=TRUE}
 dat_panel = dat_reshape
@@ -236,7 +236,10 @@ levels(marital) <- c("never married", "married", "separated",
                      "divorced", "remarried", "widowed")
 marital = relevel(marital, ref="married")
 
-exp_career <- as.numeric(EXPT.OCC==c(1,2,4)) # 5 yr career expectation parameter <-- career expectations in 1979, those who expected to be married (i.e. didn't plan on having a job) = 0, everyone else = 1
+#5 yr career expectation parameter <-- career expectations in 1979, 
+#those who expected to be married (i.e. didn't plan on having a job) := 0, 
+#otherwise := 1
+exp_career <- as.numeric(EXPT.OCC==c(1,2,4)) 
 tenure = round(data_NLSY$tenure)
 logHours <- log(HRS)
 logHours[is.infinite(logHours)] <- NA
