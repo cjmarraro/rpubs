@@ -33,9 +33,9 @@ datGerCred$age.fac<-as.factor(ifelse(datGerCred$Age<=30,'0-30',
                                      '40+')))
 datGerCred$Duration<-as.factor(ifelse(datGerCred$Duration<=15,"0-15", 
                                ifelse(datGerCred$Duration<=30, "16-30", 
-							   ifelse(datGerCred$Duration<=50, "31-50",
-							   ifelse(datGerCred$Duration<=72, "51-72"
-							   )))))
+			       ifelse(datGerCred$Duration<=50, "31-50",
+			       ifelse(datGerCred$Duration<=72, "51-72"
+			       )))))
 datGerCred$default <- as.factor(ifelse(datGerCred$Class=="Bad", 
                                        "1", "0"))
 ```
