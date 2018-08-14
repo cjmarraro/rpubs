@@ -173,27 +173,20 @@ costDat <- merge(log(datMain.xts[,c(3,2,1,7,6,5)]))
 beta<- seq(.022, .4, length.out=100) # "learning elasticity"
 k <-1:NROW(costDat)
 
-objFun <- function(x1=coredata(costDat[k,1:3]), x2=coredata(costDat[k,4:6])){
-  
+objFun <- function(x1=coredata(costDat[k,1:3]), x2=coredata(costDat[k,4:6])){ 
   if("Renewables.Shares" %in% names(x2)){
-    
-  epsilon = sample(beta[beta > .30],1)*x2
-  
+  epsilon = sample(beta[beta > .30],1)*x2  
 } else {
-  epsilon = sample(beta[beta < .03],1)*x2
-  
+  epsilon = sample(beta[beta < .03],1)*x2  
 }
   cost1 <- 1/x1 + epsilon
-
   for (l in 1:3){
-
-    ifelse(cost1[k,l] > log(priceE), Inf, cost1)
-   
-  }
- 
+    ifelse(cost1[k,l] > log(priceE), Inf, cost1)   
+  } 
   return(exp(cost1))
 k=k+1
 }
+
 #plot function
 xyplot.ts(objFun(), superpose=T, lwd=3)
 ```
@@ -210,27 +203,19 @@ b3 <- seq(from=2, to=15, length.out=10)
 
 low <- list(a1,a2,a3)
 for(i in 1:length(low)){
-  lowBound <-sample(low[[i]], size=1)
-  
+  lowBound <-sample(low[[i]], size=1) 
   lowBound <-rep(lowBound,3)
-
   return(lowBound)
 }
 
 upper <- list(b1,b2,b3)
 for(j in 1:length(upper)){
-
   upperBound <- sample(upper[[j]], size=1)
-
   upperBound <- rep(upperBound, 3)
-
-
   if(upperBound>=lowBound) {
 }
-
   return(upperBound)
 }
-
 print(lowBound)
 print(upperBound)
 ```
